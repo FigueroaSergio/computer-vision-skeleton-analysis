@@ -1,0 +1,15 @@
+tensorflow
+ultralytics
+einops
+opencv-python
+pydot
+matplotlib
+seaborn
+numpy
+graphviz
+wandb
+opencv-python-headless
+kaggle
+tf_keras
+tensorflow-gnn
+scikit-learn

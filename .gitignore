@@ -1,0 +1,7 @@
+kaggle.json
+.venv
+__pycache__
+.ipynb_checkpoints
+Real Life Violence Dataset
+wandb
+training
