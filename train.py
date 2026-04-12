@@ -231,7 +231,7 @@ def Train(name,model, epochs, train, val, run_id=None,  steps_per_epoch=None):
         validation_data = val,
          steps_per_epoch=steps_per_epoch,
     callbacks=[
-        keras.callbacks.ModelCheckpoint(f"models/{name}.h5", save_best_only=True),
+        keras.callbacks.ModelCheckpoint(f"models/{name}.keras", save_best_only=True),
         keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3,     
             min_lr=1e-6,  # Minimum learning rate
             verbose=1
@@ -239,7 +239,7 @@ def Train(name,model, epochs, train, val, run_id=None,  steps_per_epoch=None):
         keras.callbacks.BackupAndRestore(backup_path, save_freq='epoch', delete_checkpoint=True),
         keras.callbacks.EarlyStopping(
             monitor='val_loss',
-            patience=13,   # Wait longer than reduce_lr (7 > 3)
+            patience=9,   # Wait longer than reduce_lr (7 > 3)
             restore_best_weights=True,
             verbose=1
         ),
@@ -503,7 +503,7 @@ POSE_CONV3D='POSE_CONV3D'
 ST_CGN='ST_CGN'
 SPIL='SPIL'
 
-MODEL = ST_CGN
+MODEL = SPIL
 # AUTOTUNE = 0
 BATCH_SIZE=8
 
@@ -512,7 +512,7 @@ BATCH_SIZE=8
 HEIGHT= 128
 WIDTH = 128
 CHANNELS = 17
-FRAME_COUNT =15
+FRAME_COUNT =10
 if(MODEL==POSE_CONV3D):
   model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
   keras.utils.plot_model(model, expand_nested=True, dpi=60, show_shapes=True)
@@ -540,11 +540,12 @@ if(MODEL==POSE_CONV3D):
   train_ds = train_ds.batch(BATCH_SIZE)
   val_ds = val_ds.batch(BATCH_SIZE)
   # Train('Joints_PoseConv3D',model, 100, train_ds,val_ds,'Joints_PoseConv3D_1' ,steps_per_epoch=steps_per_epoch,)
-  Train('Limbs_PoseConv3D',model, 100, train_ds,val_ds)
+  Train(f'Limbs_PoseConv3D-f{FRAME_COUNT}',model, 100, train_ds,val_ds,'ba87qs2n')
 
 
 ## STGCN
 if(MODEL==ST_CGN):
+  LAYERS= 3
   output_signature= stgcn.create_skeleton_graph_spec_with_label()
   train_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['train'],
                                               training=True, 
@@ -557,7 +558,7 @@ if(MODEL==ST_CGN):
                                           ),
                                             output_signature = output_signature)
   # 
-  skeleton_gnn_model = stgcn.ST_GCN(output_signature)
+  skeleton_gnn_model = stgcn.ST_GCN(output_signature, num_gcn_layers=LAYERS)
   train_ds = train_ds.batch(BATCH_SIZE)
   val_ds = val_ds.batch(BATCH_SIZE)
   # 
@@ -565,7 +566,7 @@ if(MODEL==ST_CGN):
   val_ds = val_ds.map(stgcn.separate_features_and_label)
   num_train_samples=len(dataset['train'])
   steps_per_epoch= num_train_samples // BATCH_SIZE
-  Train(f'ST_CGN-f{FRAME_COUNT}',skeleton_gnn_model, 100, train_ds,val_ds)
+  Train(f'ST_CGN-f{FRAME_COUNT}-L{LAYERS}',skeleton_gnn_model, 100, train_ds,val_ds)
   # 
 
 if(MODEL == SPIL):
@@ -588,7 +589,9 @@ if(MODEL == SPIL):
                         tf.TensorSpec(shape=(), dtype=tf.int32))
   ).batch(BATCH_SIZE)
   model = spil.ViolenceRecognitionNet(num_classes=2)
-  optimizer = tf.keras.optimizers.SGD(learning_rate=1e-4, momentum=0.9, clipnorm=1.0)
+  optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9, clipnorm=1.0)
   loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
   model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
   Train(f'SPIL-f{FRAME_COUNT}',model, 100, train_ds,val_ds )
+# new_model = tf.keras.models.load_model('models/ST_CGN.h5')
+# new_model.summary()
