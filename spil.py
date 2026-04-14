@@ -59,18 +59,18 @@ class SPIL_Layer(layers.Layer):
         self.head_dim = out_channels // num_heads
 
         # Learnable linear projections for Feature Term (phi and theta in Eq 3) 
-        self.phi = layers.Dense(self.head_dim, activation='relu')
-        self.theta = layers.Dense(self.head_dim, activation='relu')
+        self.phi = layers.Dense(self.head_dim, activation='relu', name='phi')
+        self.theta = layers.Dense(self.head_dim, activation='relu', name='theta')
         
         # Learnable MLPs for Position Term (M1, M2 in Eq 5/6) 
-        self.m1 = layers.Dense(self.head_dim // 2, activation='relu')
-        self.m2 = layers.Dense(self.head_dim // 2, activation='relu')
+        self.m1 = layers.Dense(self.head_dim // 2, activation='relu', name='m1')
+        self.m2 = layers.Dense(self.head_dim // 2, activation='relu', name='m2')
         
         # Linear projection psi for Position Term 
-        self.psi = layers.Dense(1, activation='relu')
-
+        self.psi = layers.Dense(1, activation='relu', name='psi')
+        
         # Layer-specific weight matrix Z for convolution
-        self.Z_weight = layers.Dense(self.head_dim)
+        self.Z_weight = layers.Dense(self.head_dim, name='Z_weight')
 
     def call(self, center_xyz, center_features, neighbor_xyz, neighbor_features):
         """
@@ -194,17 +194,20 @@ class MultiHeadSPIL(layers.Layer):
         [cite_start]Paper: "Multiple heads attend to fuse features... to jointly handle different types of relationships"[cite: 8].
         """
         super(MultiHeadSPIL, self).__init__(**kwargs)
-        self.heads = []
         self.num_heads = num_heads
-        # [cite_start]Create independent heads [cite: 191]
-        for _ in range(num_heads):
-            self.heads.append(SPIL_Layer(out_channels, num_heads, d_threshold))
+        # Register heads as attributes so Keras can track them properly
+        self._head_list = []
+        for i in range(num_heads):
+            head = SPIL_Layer(out_channels, num_heads, d_threshold, name=f'head_{i}')
+            setattr(self, f'head_{i}', head)
+            self._head_list.append(head)
             
     def call(self, center_xyz, center_features, neighbor_xyz, neighbor_features):
         head_outputs = []
-        for head in self.heads:
+        for head in self._head_list:
             # Each head computes features independently
-            out = head(center_xyz, center_features, neighbor_xyz, neighbor_features)
+            out = 
+            (center_xyz, center_features, neighbor_xyz, neighbor_features)
             head_outputs.append(out)
             
         # [cite_start]Concatenate results from all heads (Eq 8) [cite: 204]
@@ -226,19 +229,19 @@ class ViolenceRecognitionNet(Model):
         
         # SPIL Modules (3 layers) [cite: 231]
         # Increasing feature dimensions as is typical in PointNet-like architectures
-        self.spil1 = MultiHeadSPIL(out_channels=32, num_heads=self.num_heads, d_threshold=self.d_thresh)
-        self.spil2 = MultiHeadSPIL(out_channels=64, num_heads=self.num_heads, d_threshold=self.d_thresh)
-        self.spil3 = MultiHeadSPIL(out_channels=128, num_heads=self.num_heads, d_threshold=self.d_thresh)
+        self.spil1 = MultiHeadSPIL(out_channels=32, num_heads=self.num_heads, d_threshold=self.d_thresh, name='spil_1')
+        self.spil2 = MultiHeadSPIL(out_channels=64, num_heads=self.num_heads, d_threshold=self.d_thresh, name='spil_2')
+        self.spil3 = MultiHeadSPIL(out_channels=128, num_heads=self.num_heads, d_threshold=self.d_thresh, name='spil_3')
         
         # MLP before pooling
-        self.mlp_final = layers.Dense(256, activation='relu') # [cite: 211]
+        self.mlp_final = layers.Dense(256, activation='relu', name='mlp_final') # [cite: 211]
         
         # Global Average Pooling [cite: 211]
-        self.global_pool = layers.GlobalAveragePooling1D()
+        self.global_pool = layers.GlobalAveragePooling1D(name='global_avg_pool')
         
         # Classification Head
-        self.dropout = layers.Dropout(0.4) # Dropout ratio 0.4 [cite: 229]
-        self.classifier = layers.Dense(num_classes, activation='softmax') # [cite: 212]
+        self.dropout = layers.Dropout(0.4, name='dropout') # Dropout ratio 0.4 [cite: 229]
+        self.classifier = layers.Dense(num_classes, activation='softmax', name='classifier') # [cite: 212]
 
     def call(self, inputs):
         """

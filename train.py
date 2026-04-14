@@ -1,7 +1,5 @@
 import io
 import base64
-from IPython.display import HTML
-from IPython import display as ipythondisplay
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -502,96 +500,99 @@ class FrameGenerator:
 POSE_CONV3D='POSE_CONV3D'
 ST_CGN='ST_CGN'
 SPIL='SPIL'
+if __name__ == "__main__":
+    MODEL = SPIL
+    # AUTOTUNE = 0
+    BATCH_SIZE=8
 
-MODEL = SPIL
-# AUTOTUNE = 0
-BATCH_SIZE=8
+    #ONLY JOINTS
 
-#ONLY JOINTS
-
-HEIGHT= 128
-WIDTH = 128
-CHANNELS = 17
-FRAME_COUNT =10
-if(MODEL==POSE_CONV3D):
-  model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
-  keras.utils.plot_model(model, expand_nested=True, dpi=60, show_shapes=True)
-  output_signature = (tf.TensorSpec(
-                          shape = (None ,None, None, 17), 
-                          dtype = tf.float32
-                          ),
-                      tf.TensorSpec(shape = (), dtype = tf.int16))
-  train_ds = tf.data.Dataset.from_generator(FrameGenerator(dataset['train'],
-                                              training=True, 
-                                              n_frames=FRAME_COUNT, 
-                                              feature_extractor=limb_heatmap, 
-                                              output_size=(HEIGHT, WIDTH,CHANNELS)
-                                          ),
-                                            output_signature = output_signature)
-  val_ds = tf.data.Dataset.from_generator(FrameGenerator(dataset['val'],
-                                              training=True, 
-                                              n_frames=FRAME_COUNT, 
-                                              feature_extractor=limb_heatmap, 
-                                              output_size=(HEIGHT, WIDTH,CHANNELS)
+    HEIGHT= 128
+    WIDTH = 128
+    CHANNELS = 17
+    FRAME_COUNT =10
+    if(MODEL==POSE_CONV3D):
+      model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
+      keras.utils.plot_model(model, expand_nested=True, dpi=60, show_shapes=True)
+      output_signature = (tf.TensorSpec(
+                              shape = (None ,None, None, 17), 
+                              dtype = tf.float32
+                              ),
+                          tf.TensorSpec(shape = (), dtype = tf.int16))
+      train_ds = tf.data.Dataset.from_generator(FrameGenerator(dataset['train'],
+                                                  training=True, 
+                                                  n_frames=FRAME_COUNT, 
+                                                  feature_extractor=limb_heatmap, 
+                                                  output_size=(HEIGHT, WIDTH,CHANNELS)
                                               ),
-                                          output_signature = output_signature)
-  # train_ds = train_ds.prefetch(buffer_size = AUTOTUNE)
-  # val_ds = val_ds.prefetch(buffer_size = AUTOTUNE)
-  train_ds = train_ds.batch(BATCH_SIZE)
-  val_ds = val_ds.batch(BATCH_SIZE)
-  # Train('Joints_PoseConv3D',model, 100, train_ds,val_ds,'Joints_PoseConv3D_1' ,steps_per_epoch=steps_per_epoch,)
-  Train(f'Limbs_PoseConv3D-f{FRAME_COUNT}',model, 100, train_ds,val_ds,'ba87qs2n')
+                                                output_signature = output_signature)
+      val_ds = tf.data.Dataset.from_generator(FrameGenerator(dataset['val'],
+                                                  training=True, 
+                                                  n_frames=FRAME_COUNT, 
+                                                  feature_extractor=limb_heatmap, 
+                                                  output_size=(HEIGHT, WIDTH,CHANNELS)
+                                                  ),
+                                              output_signature = output_signature)
+      # train_ds = train_ds.prefetch(buffer_size = AUTOTUNE)
+      # val_ds = val_ds.prefetch(buffer_size = AUTOTUNE)
+      train_ds = train_ds.batch(BATCH_SIZE)
+      val_ds = val_ds.batch(BATCH_SIZE)
+      # Train('Joints_PoseConv3D',model, 100, train_ds,val_ds,'Joints_PoseConv3D_1' ,steps_per_epoch=steps_per_epoch,)
+      Train(f'Limbs_PoseConv3D-f{FRAME_COUNT}',model, 100, train_ds,val_ds,'ba87qs2n')
 
 
-## STGCN
-if(MODEL==ST_CGN):
-  LAYERS= 3
-  output_signature= stgcn.create_skeleton_graph_spec_with_label()
-  train_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['train'],
-                                              training=True, 
-                                              n_frames=FRAME_COUNT, 
-                                          ),
-                                            output_signature = output_signature)
-  val_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['val'],
-                                              training=False, 
-                                              n_frames=FRAME_COUNT, 
-                                          ),
-                                            output_signature = output_signature)
-  # 
-  skeleton_gnn_model = stgcn.ST_GCN(output_signature, num_gcn_layers=LAYERS)
-  train_ds = train_ds.batch(BATCH_SIZE)
-  val_ds = val_ds.batch(BATCH_SIZE)
-  # 
-  train_ds = train_ds.map(stgcn.separate_features_and_label)
-  val_ds = val_ds.map(stgcn.separate_features_and_label)
-  num_train_samples=len(dataset['train'])
-  steps_per_epoch= num_train_samples // BATCH_SIZE
-  Train(f'ST_CGN-f{FRAME_COUNT}-L{LAYERS}',skeleton_gnn_model, 100, train_ds,val_ds)
-  # 
+    ## STGCN
+    if(MODEL==ST_CGN):
+      LAYERS= 3
+      output_signature= stgcn.create_skeleton_graph_spec_with_label()
+      train_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['train'],
+                                                  training=True, 
+                                                  n_frames=FRAME_COUNT, 
+                                              ),
+                                                output_signature = output_signature)
+      val_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['val'],
+                                                  training=False, 
+                                                  n_frames=FRAME_COUNT, 
+                                              ),
+                                                output_signature = output_signature)
+      # 
+      skeleton_gnn_model = stgcn.ST_GCN(output_signature, num_gcn_layers=LAYERS)
+      train_ds = train_ds.batch(BATCH_SIZE)
+      val_ds = val_ds.batch(BATCH_SIZE)
+      # 
+      train_ds = train_ds.map(stgcn.separate_features_and_label)
+      val_ds = val_ds.map(stgcn.separate_features_and_label)
+      num_train_samples=len(dataset['train'])
+      steps_per_epoch= num_train_samples // BATCH_SIZE
+      Train(f'ST_CGN-f{FRAME_COUNT}-L{LAYERS}',skeleton_gnn_model, 100, train_ds,val_ds)
+      # 
 
-if(MODEL == SPIL):
-  N_POINTS= 1024
+    if(MODEL == SPIL):
+      N_POINTS= 1024
 
 
 
-  train_gen = spil.SPILGenerator(dataset['train'], n_frames=FRAME_COUNT,training=True)
-  val_gen = spil.SPILGenerator(dataset['val'],  n_frames=FRAME_COUNT,training=False)
+      train_gen = spil.SPILGenerator(dataset['train'], n_frames=FRAME_COUNT,training=True)
+      val_gen = spil.SPILGenerator(dataset['val'],  n_frames=FRAME_COUNT,training=False)
 
-  train_ds = tf.data.Dataset.from_generator(
-      train_gen,
-      output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
-                        tf.TensorSpec(shape=(), dtype=tf.int32))
-  ).batch(BATCH_SIZE)
+      train_ds = tf.data.Dataset.from_generator(
+          train_gen,
+          output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
+                            tf.TensorSpec(shape=(), dtype=tf.int32))
+      ).batch(BATCH_SIZE)
 
-  val_ds = tf.data.Dataset.from_generator(
-      val_gen,
-      output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
-                        tf.TensorSpec(shape=(), dtype=tf.int32))
-  ).batch(BATCH_SIZE)
-  model = spil.ViolenceRecognitionNet(num_classes=2)
-  optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9, clipnorm=1.0)
-  loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
-  model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
-  Train(f'SPIL-f{FRAME_COUNT}',model, 100, train_ds,val_ds )
-# new_model = tf.keras.models.load_model('models/ST_CGN.h5')
-# new_model.summary()
+      val_ds = tf.data.Dataset.from_generator(
+          val_gen,
+          output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
+                            tf.TensorSpec(shape=(), dtype=tf.int32))
+      ).batch(BATCH_SIZE)
+      model = spil.ViolenceRecognitionNet(num_classes=2)
+      optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9, clipnorm=1.0)
+      loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
+      model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
+      Train(f'SPIL-f{FRAME_COUNT}',model, 100, train_ds,val_ds )
+    # model =  Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
+  
+
+    # model.load_weights('models/Limbs_PoseConv3D-f10.keras',skip_mismatch=True)
+    # model.summary()
