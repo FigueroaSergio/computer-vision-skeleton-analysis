@@ -1,0 +1,2 @@
+Model,Type,Frames,Avg Prep (s),Avg Inf (s),Total Avg (s),Throughput (v/s),FPS
+SPIL-f10,SPIL,10,0.8481,0.2736,1.1217,0.89,8.91
