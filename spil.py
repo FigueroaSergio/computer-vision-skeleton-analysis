@@ -206,8 +206,7 @@ class MultiHeadSPIL(layers.Layer):
         head_outputs = []
         for head in self._head_list:
             # Each head computes features independently
-            out = 
-            (center_xyz, center_features, neighbor_xyz, neighbor_features)
+            out = head(center_xyz, center_features, neighbor_xyz, neighbor_features)
             head_outputs.append(out)
             
         # [cite_start]Concatenate results from all heads (Eq 8) [cite: 204]
