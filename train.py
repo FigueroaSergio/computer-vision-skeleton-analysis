@@ -229,7 +229,7 @@ def Train(name,model, epochs, train, val, run_id=None,  steps_per_epoch=None):
         validation_data = val,
          steps_per_epoch=steps_per_epoch,
     callbacks=[
-        keras.callbacks.ModelCheckpoint(f"models/{name}.keras", save_best_only=True),
+        keras.callbacks.ModelCheckpoint(f"models/{name}.h5", save_best_only=True),
         keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3,     
             min_lr=1e-6,  # Minimum learning rate
             verbose=1
@@ -501,7 +501,7 @@ POSE_CONV3D='POSE_CONV3D'
 ST_CGN='ST_CGN'
 SPIL='SPIL'
 if __name__ == "__main__":
-    MODEL = SPIL
+    MODEL = ST_CGN
     # AUTOTUNE = 0
     BATCH_SIZE=8
 
@@ -510,7 +510,7 @@ if __name__ == "__main__":
     HEIGHT= 128
     WIDTH = 128
     CHANNELS = 17
-    FRAME_COUNT =10
+    FRAME_COUNT =15
     if(MODEL==POSE_CONV3D):
       model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
       keras.utils.plot_model(model, expand_nested=True, dpi=60, show_shapes=True)
@@ -543,7 +543,7 @@ if __name__ == "__main__":
 
     ## STGCN
     if(MODEL==ST_CGN):
-      LAYERS= 3
+      LAYERS= 2
       output_signature= stgcn.create_skeleton_graph_spec_with_label()
       train_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['train'],
                                                   training=True, 
