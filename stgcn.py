@@ -64,17 +64,14 @@ def joint_in_time(from_person,to_person):
         joints.append((from_person*17 + i, to_person*17 + i))
     return joints
 
-def get_features(path_video,frame_count=10, frame_step=10):
-    frames = get_frames(path_video,frame_count)
+def get_features_graph_from_yolo_results(results_list):
     frames_dict={} # frame_number: [person_id, person_id,...]
     person_dict={} # person_id: {'joints':..., 'confidence':...}
-    person_in_time = [] # (person_id_in_current_frame: person_id_in_previous_frame)
     joints_all_frames = []
     limb_all_frames = []
     joints_in_time=[]
     current_id=-1
-    for time, frame in enumerate(frames):
-      results = modelYolo(frame, verbose=False)
+    for time, results in enumerate(results_list):
       frames_dict[time]=[]
       if len(results[0])==0 :
         continue
@@ -118,9 +115,13 @@ def get_features(path_video,frame_count=10, frame_step=10):
           joints_in_time+= joint_in_time(past_id, current_id)
 
 
-        # Remove all other distances involving past_id or current_id
         distances = [d for d in distances if d[1]!=past_id and d[2]!=current_id]
     return joints_all_frames, limb_all_frames, joints_in_time
+
+def get_features(path_video,frame_count=10):
+    frames = get_frames(path_video,frame_count)
+    results_list = [modelYolo(frame, verbose=False) for frame in frames]
+    return get_features_graph_from_yolo_results(results_list)
 
 def build_graph(joints_all_frames, limb_all_frames, joints_in_time, label):
     # Ensure label is wrapped for rank 1 (assuming fix from previous steps)
@@ -188,8 +189,8 @@ def build_graph(joints_all_frames, limb_all_frames, joints_in_time, label):
     )
     return graph
 
-def graph_from_video(path_video,name,n_frames=10, frame_step=10):
-    joints_all_frames, limb_all_frames, joints_in_time = get_features(path_video,n_frames, frame_step)
+def graph_from_video(path_video,name,n_frames=10):
+    joints_all_frames, limb_all_frames, joints_in_time = get_features(path_video,n_frames)
     label = get_class_ids(name)
     graph = build_graph(joints_all_frames, limb_all_frames, joints_in_time,label)
   

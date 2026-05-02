@@ -415,13 +415,10 @@ def get_frame_features(frame, feature_extractor ):
   aggregate_features = np.mean(stacked_features, axis=0)
   return aggregate_features, stacked_features
 
-# GENERATOR
 import random
 import tensorflow as tf
 
-def get_feautures(frame, feature_extractor=joint_heatmap, output_size = (HEIGHT, WIDTH,CHANNELS)):
-  results = modelYolo(frame, verbose=False)
-
+def get_features_conv3d_from_yolo_results(results, frame_shape, feature_extractor=joint_heatmap, output_size = (HEIGHT, WIDTH,CHANNELS)):
   if len(results[0])==0 :
     return np.zeros(output_size)
   processed_person = []
@@ -429,7 +426,7 @@ def get_feautures(frame, feature_extractor=joint_heatmap, output_size = (HEIGHT,
   for person in results[0].keypoints:
     # print('Processing person')
     joints = person.data.cpu().numpy()[0]
-    h, w, _ = frame.shape
+    h, w, _ = frame_shape
     sigma = 5
     heatmap = feature_extractor(w, h, joints,sigma)
     processed_person.append(heatmap)
@@ -437,6 +434,10 @@ def get_feautures(frame, feature_extractor=joint_heatmap, output_size = (HEIGHT,
   averaged_matrix = np.mean(stacked_matrices, axis=0)
   del stacked_matrices
   return averaged_matrix
+
+def get_feautures(frame, feature_extractor=joint_heatmap, output_size = (HEIGHT, WIDTH,CHANNELS)):
+  results = modelYolo(frame, verbose=False)
+  return get_features_conv3d_from_yolo_results(results, frame.shape, feature_extractor, output_size)
 
 
 def format_frames(frame, output_size):
@@ -501,7 +502,7 @@ POSE_CONV3D='POSE_CONV3D'
 ST_CGN='ST_CGN'
 SPIL='SPIL'
 if __name__ == "__main__":
-    MODEL = SPIL
+    MODEL = None
     # AUTOTUNE = 0
     BATCH_SIZE=8
 
@@ -513,7 +514,6 @@ if __name__ == "__main__":
     FRAME_COUNT =10
     if(MODEL==POSE_CONV3D):
       model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
-      keras.utils.plot_model(model, expand_nested=True, dpi=60, show_shapes=True)
       output_signature = (tf.TensorSpec(
                               shape = (None ,None, None, 17), 
                               dtype = tf.float32
@@ -533,12 +533,10 @@ if __name__ == "__main__":
                                                   output_size=(HEIGHT, WIDTH,CHANNELS)
                                                   ),
                                               output_signature = output_signature)
-      # train_ds = train_ds.prefetch(buffer_size = AUTOTUNE)
-      # val_ds = val_ds.prefetch(buffer_size = AUTOTUNE)
+
       train_ds = train_ds.batch(BATCH_SIZE)
       val_ds = val_ds.batch(BATCH_SIZE)
-      # Train('Joints_PoseConv3D',model, 100, train_ds,val_ds,'Joints_PoseConv3D_1' ,steps_per_epoch=steps_per_epoch,)
-      Train(f'Limbs_PoseConv3D-f{FRAME_COUNT}',model, 100, train_ds,val_ds,'ba87qs2n')
+      Train(f'Limbs_PoseConv3D-f{FRAME_COUNT}',model, 100, train_ds,val_ds)
 
 
     ## STGCN
@@ -591,8 +589,3 @@ if __name__ == "__main__":
       loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
       model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
       Train(f'SPIL-f{FRAME_COUNT}',model, 100, train_ds,val_ds )
-    # model =  Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
-  
-
-    # model.load_weights('models/Limbs_PoseConv3D-f10.keras',skip_mismatch=True)
-    # model.summary()
