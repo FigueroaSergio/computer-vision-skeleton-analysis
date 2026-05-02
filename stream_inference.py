@@ -1,4 +1,5 @@
 import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1" 
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -7,7 +8,7 @@ from collections import deque
 from ultralytics import YOLO
 
 # Ensure keras compatibility
-os.environ["TF_USE_LEGACY_KERAS"] = "1" 
+
 
 from model_config import MODELS_CONFIG
 from benchmark import load_spil_model, load_stgcn_model, load_poseconv3d_model
@@ -16,8 +17,11 @@ from benchmark import load_spil_model, load_stgcn_model, load_poseconv3d_model
 from spil import get_features_spil_from_yolo_results
 from stgcn import get_features_graph_from_yolo_results, build_graph, separate_features_and_label
 from train import get_features_conv3d_from_yolo_results, limb_heatmap, format_frames
-from preprocessing import STEP, HEIGHT, WIDTH, CHANNELS
+from preprocessing import STEP
 
+HEIGHT= 128
+WIDTH = 128
+CHANNELS = 17
 def pad_or_sample_points(points, n_points):
     """Pad or sample points to reach exactly n_points (Used for SPIL)."""
     if len(points) == 0:
