@@ -13,3 +13,6 @@ kaggle
 tf_keras
 tensorflow-gnn
 scikit-learn
+gradio
+imageio
+imageio[ffmpeg]
