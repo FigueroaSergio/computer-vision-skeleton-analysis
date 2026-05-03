@@ -494,8 +494,8 @@ class FrameGenerator:
     
 
 
-POSE_CONV3D='POSE_CONV3D'
-ST_CGN='ST_CGN'
+POSE_CONV3D='PoseConv3D'
+ST_CGN='ST_GCN'
 SPIL='SPIL'
 if __name__ == "__main__":
     import argparse

@@ -16,9 +16,9 @@ MODELS_CONFIG = [
         "layers": 3
     },
     {
-        "name": "ST_GCN-f10",
+        "name": "ST_GCN-f10-L2",
         "type": "ST_GCN",
-        "weights_path": "models/ST_CGN-f10.h5",
+        "weights_path": "models/ST_CGN-f10-L2.h5",
         "n_frames": 10,
         "layers": 2
     },
