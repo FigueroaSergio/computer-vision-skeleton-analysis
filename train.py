@@ -1,26 +1,22 @@
-import io
-import base64
+import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1" 
+os.environ["WANDB_API_KEY"] = "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"
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import random
-import os
-os.environ["TF_USE_LEGACY_KERAS"] = "1" 
+
 from ultralytics import YOLO
 from PoseCon3d import Pose3D 
 import stgcn
 import spil
 from preprocessing import get_frames, get_class_ids
-os.environ["WANDB_API_KEY"] = "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"
 
-path_video='./Real Life Violence Dataset/NonViolence/NV_1.mp4'
 
 FRAME_COUNT =5
 IMG_SIZE = 640
 STEP= 5
 
-frames = get_frames(path_video)
-print(len(frames))
 modelYolo = YOLO("yolo11n-pose.pt")
 
 HEIGHT= 128
@@ -145,10 +141,10 @@ def get_dataset(path, train=0.7, test=0.2, val=0.1, cache_file='dataset_cache.js
   
   return dataset
 
-dataset = get_dataset('./Real Life Violence Dataset')
-print('Train: ', len(dataset['train']))
-print('Val: ', len(dataset['val']))
-print('Test: ', len(dataset['test']))
+# dataset = get_dataset('./Real Life Violence Dataset')
+# print('Train: ', len(dataset['train']))
+# print('Val: ', len(dataset['val']))
+# print('Test: ', len(dataset['test']))
 import wandb
 from wandb.integration.keras import WandbMetricsLogger
 wandb.login()
@@ -502,90 +498,130 @@ POSE_CONV3D='POSE_CONV3D'
 ST_CGN='ST_CGN'
 SPIL='SPIL'
 if __name__ == "__main__":
-    MODEL = None
-    # AUTOTUNE = 0
-    BATCH_SIZE=8
+    import argparse
+    from model_config import MODELS_CONFIG
 
-    #ONLY JOINTS
+    parser = argparse.ArgumentParser(description="Train Violence Recognition Models")
+    parser.add_argument("--config", type=str, help="Model name from config (e.g. SPIL-f10)")
+    parser.add_argument("--model", type=str, choices=[POSE_CONV3D, ST_CGN, SPIL], help="Model type to train")
+    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size")
+    parser.add_argument("--frames", type=int, default=10, help="Number of frames per video")
+    parser.add_argument("--layers", type=int, default=2, help="Number of GCN layers (for ST_GCN)")
+    parser.add_argument("--n_points", type=int, default=1024, help="Number of points (for SPIL)")
+    parser.add_argument("--dataset_path", type=str, default='./Real Life Violence Dataset', help="Path to the dataset")
+    parser.add_argument("--resume_id", type=str, default=None, help="WandB run ID to resume")
 
-    HEIGHT= 128
-    WIDTH = 128
-    CHANNELS = 17
-    FRAME_COUNT =10
-    if(MODEL==POSE_CONV3D):
-      model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
-      output_signature = (tf.TensorSpec(
-                              shape = (None ,None, None, 17), 
-                              dtype = tf.float32
-                              ),
-                          tf.TensorSpec(shape = (), dtype = tf.int16))
-      train_ds = tf.data.Dataset.from_generator(FrameGenerator(dataset['train'],
-                                                  training=True, 
-                                                  n_frames=FRAME_COUNT, 
-                                                  feature_extractor=limb_heatmap, 
-                                                  output_size=(HEIGHT, WIDTH,CHANNELS)
-                                              ),
-                                                output_signature = output_signature)
-      val_ds = tf.data.Dataset.from_generator(FrameGenerator(dataset['val'],
-                                                  training=True, 
-                                                  n_frames=FRAME_COUNT, 
-                                                  feature_extractor=limb_heatmap, 
-                                                  output_size=(HEIGHT, WIDTH,CHANNELS)
-                                                  ),
-                                              output_signature = output_signature)
+    args = parser.parse_args()
 
-      train_ds = train_ds.batch(BATCH_SIZE)
-      val_ds = val_ds.batch(BATCH_SIZE)
-      Train(f'Limbs_PoseConv3D-f{FRAME_COUNT}',model, 100, train_ds,val_ds)
+    # Load configuration if provided
+    config = None
+    if args.config:
+        config = next((m for m in MODELS_CONFIG if m["name"] == args.config), None)
+        if not config:
+            print(f"Error: Model configuration '{args.config}' not found in model_config.py")
+            exit(1)
+        
+        # Override defaults with config values
+        MODEL_TYPE = config["type"]
+        FRAME_COUNT = config.get("n_frames", 10)
+        LAYERS = config.get("layers", 2)
+        N_POINTS = config.get("n_points", 1024)
+        NAME = config["name"]
+    else:
+        if not args.model:
+            print("Error: Either --config or --model must be specified.")
+            parser.print_help()
+            exit(1)
+        MODEL_TYPE = args.model
+        FRAME_COUNT = args.frames
+        LAYERS = args.layers
+        N_POINTS = args.n_points
+        if MODEL_TYPE == ST_CGN:
+            NAME = f'ST_CGN-f{FRAME_COUNT}-L{LAYERS}'
+        elif MODEL_TYPE == POSE_CONV3D:
+            NAME = f'Limbs_PoseConv3D-f{FRAME_COUNT}'
+        else:
+            NAME = f'SPIL-f{FRAME_COUNT}'
 
+    BATCH_SIZE = args.batch_size
+    EPOCHS = args.epochs
+    DATASET_PATH = args.dataset_path
+    RESUME_ID = args.resume_id
 
-    ## STGCN
-    if(MODEL==ST_CGN):
-      LAYERS= 2
-      output_signature= stgcn.create_skeleton_graph_spec_with_label()
-      train_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['train'],
-                                                  training=True, 
-                                                  n_frames=FRAME_COUNT, 
-                                              ),
-                                                output_signature = output_signature)
-      val_ds = tf.data.Dataset.from_generator(stgcn.GraphGenerator(dataset['val'],
-                                                  training=False, 
-                                                  n_frames=FRAME_COUNT, 
-                                              ),
-                                                output_signature = output_signature)
-      # 
-      skeleton_gnn_model = stgcn.ST_GCN(output_signature, num_gcn_layers=LAYERS)
-      train_ds = train_ds.batch(BATCH_SIZE)
-      val_ds = val_ds.batch(BATCH_SIZE)
-      # 
-      train_ds = train_ds.map(stgcn.separate_features_and_label)
-      val_ds = val_ds.map(stgcn.separate_features_and_label)
-      num_train_samples=len(dataset['train'])
-      steps_per_epoch= num_train_samples // BATCH_SIZE
-      Train(f'ST_CGN-f{FRAME_COUNT}-L{LAYERS}',skeleton_gnn_model, 100, train_ds,val_ds)
-      # 
+    print(f"Training configuration: {NAME}")
+    print(f"Model Type: {MODEL_TYPE}")
+    print(f"Frames: {FRAME_COUNT}, Epochs: {EPOCHS}, Batch Size: {BATCH_SIZE}")
 
-    if(MODEL == SPIL):
-      N_POINTS= 1024
+    # Load Dataset
+    dataset = get_dataset(DATASET_PATH)
+    print(f"Dataset loaded: {len(dataset['train'])} train, {len(dataset['val'])} val, {len(dataset['test'])} test")
 
+    if MODEL_TYPE == POSE_CONV3D:
+        # CONV3D settings
+        HEIGHT = 128
+        WIDTH = 128
+        CHANNELS = 17
+        
+        model = Pose3D(FRAME_COUNT, HEIGHT, WIDTH, CHANNELS)
+        output_signature = (
+            tf.TensorSpec(shape=(None, None, None, 17), dtype=tf.float32),
+            tf.TensorSpec(shape=(), dtype=tf.int16)
+        )
+        
+        train_ds = tf.data.Dataset.from_generator(
+            FrameGenerator(dataset['train'], training=True, n_frames=FRAME_COUNT, 
+                           feature_extractor=limb_heatmap, output_size=(HEIGHT, WIDTH, CHANNELS)),
+            output_signature=output_signature
+        ).batch(BATCH_SIZE)
+        
+        val_ds = tf.data.Dataset.from_generator(
+            FrameGenerator(dataset['val'], training=False, n_frames=FRAME_COUNT, 
+                           feature_extractor=limb_heatmap, output_size=(HEIGHT, WIDTH, CHANNELS)),
+            output_signature=output_signature
+        ).batch(BATCH_SIZE)
 
+        Train(NAME, model, EPOCHS, train_ds, val_ds, run_id=RESUME_ID)
 
-      train_gen = spil.SPILGenerator(dataset['train'], n_frames=FRAME_COUNT,training=True)
-      val_gen = spil.SPILGenerator(dataset['val'],  n_frames=FRAME_COUNT,training=False)
+    elif MODEL_TYPE == ST_CGN:
+        output_signature = stgcn.create_skeleton_graph_spec_with_label()
+        
+        train_ds = tf.data.Dataset.from_generator(
+            stgcn.GraphGenerator(dataset['train'], training=True, n_frames=FRAME_COUNT),
+            output_signature=output_signature
+        ).batch(BATCH_SIZE).map(stgcn.separate_features_and_label)
+        
+        val_ds = tf.data.Dataset.from_generator(
+            stgcn.GraphGenerator(dataset['val'], training=False, n_frames=FRAME_COUNT),
+            output_signature=output_signature
+        ).batch(BATCH_SIZE).map(stgcn.separate_features_and_label)
 
-      train_ds = tf.data.Dataset.from_generator(
-          train_gen,
-          output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
-                            tf.TensorSpec(shape=(), dtype=tf.int32))
-      ).batch(BATCH_SIZE)
+        skeleton_gnn_model = stgcn.ST_GCN(output_signature, num_gcn_layers=LAYERS)
+        
+        num_train_samples = len(dataset['train'])
+        steps_per_epoch = num_train_samples // BATCH_SIZE
+        
+        Train(NAME, skeleton_gnn_model, EPOCHS, train_ds, val_ds, run_id=RESUME_ID, steps_per_epoch=steps_per_epoch)
 
-      val_ds = tf.data.Dataset.from_generator(
-          val_gen,
-          output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
-                            tf.TensorSpec(shape=(), dtype=tf.int32))
-      ).batch(BATCH_SIZE)
-      model = spil.ViolenceRecognitionNet(num_classes=2)
-      optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9, clipnorm=1.0)
-      loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
-      model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
-      Train(f'SPIL-f{FRAME_COUNT}',model, 100, train_ds,val_ds )
+    elif MODEL_TYPE == SPIL:
+        train_gen = spil.SPILGenerator(dataset['train'], n_frames=FRAME_COUNT, training=True)
+        val_gen = spil.SPILGenerator(dataset['val'], n_frames=FRAME_COUNT, training=False)
+
+        train_ds = tf.data.Dataset.from_generator(
+            train_gen,
+            output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
+                              tf.TensorSpec(shape=(), dtype=tf.int32))
+        ).batch(BATCH_SIZE)
+
+        val_ds = tf.data.Dataset.from_generator(
+            val_gen,
+            output_signature=(tf.TensorSpec(shape=(N_POINTS, 4), dtype=tf.float32), 
+                              tf.TensorSpec(shape=(), dtype=tf.int32))
+        ).batch(BATCH_SIZE)
+
+        model = spil.ViolenceRecognitionNet(num_classes=2)
+        optimizer = tf.keras.optimizers.SGD(learning_rate=1e-3, momentum=0.9, clipnorm=1.0)
+        loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
+        model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy'])
+        
+        Train(NAME, model, EPOCHS, train_ds, val_ds, run_id=RESUME_ID)
