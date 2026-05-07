@@ -219,13 +219,16 @@ def Train(name,model, epochs, train, val, run_id=None,  steps_per_epoch=None):
     wandb.config.update({"frame_count": FRAME_COUNT})
     backup_path = f"training/{name}"
     os.makedirs(backup_path, exist_ok=True)
+    save_extension='keras'
+    if('ST_GCN' in name or 'ST_CGN' in name):
+       save_extension='h5'
     model.fit(
         train,
         epochs = epochs,
         validation_data = val,
          steps_per_epoch=steps_per_epoch,
     callbacks=[
-        keras.callbacks.ModelCheckpoint(f"models/{name}.keras", save_best_only=True),
+        keras.callbacks.ModelCheckpoint(f"models/{name}.{save_extension}", save_best_only=True),
         keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3,     
             min_lr=1e-6,  # Minimum learning rate
             verbose=1
