@@ -11,12 +11,13 @@ from ultralytics import YOLO
 
 
 from model_config import MODELS_CONFIG
-from benchmark import load_spil_model, load_stgcn_model, load_poseconv3d_model
+from loader import load_model
 
-# Import preprocessing logic extracted from generators
-from spil import get_features_spil_from_yolo_results
-from stgcn import get_features_graph_from_yolo_results, build_graph, separate_features_and_label
-from train import get_features_conv3d_from_yolo_results, limb_heatmap, format_frames
+from SPIL.feature_extractor import get_features_spil_from_yolo_results
+from STCGN.feature_extractor import get_features_graph_from_yolo_results, build_graph
+from STCGN.generator import separate_features_and_label
+
+from PoseConv3D.feature_extractor import get_features_conv3d_from_yolo_results, limb_heatmap, format_frames
 from preprocessing import STEP
 
 HEIGHT= 128
@@ -40,21 +41,16 @@ def process_video(input_path, output_path, config):
     n_frames = config.get("n_frames", 10)
     frame_step = STEP # From preprocessing.py
     name = config["name"]
+    n_points = config.get("n_points", 1024)
     
     print(f"Loading YOLO model...")
     yolo_model = YOLO("yolo11n-pose.pt")
     
     print(f"Loading {name} model...")
-    if "SPIL" in model_type:
-        model, _ = load_spil_model(config)
-        n_points = config.get("n_points", 1024)
-    elif "ST_GCN" in model_type:
-        model, _ = load_stgcn_model(config)
-    elif "PoseConv3D" in model_type:
-        model, _ = load_poseconv3d_model(config)
-    else:
-        print(f"Unsupported model type: {model_type}")
+    model_data = load_model(config)
+    if model_data == None:
         return
+    model, name = model_data
 
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
