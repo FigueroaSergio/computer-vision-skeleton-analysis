@@ -8,12 +8,21 @@ FRAME_COUNT=5
 HEIGHT = 128
 WIDTH = 128
 CHANNELS = 17
+IMG_SIZE=640
 
 def joint_value(i,j,x,y,confidence, sigma):
   """Calculates the value of a joint in a heatmap."""
   return np.exp(-((i - x)**2 + (j - y)**2) / (2 * sigma**2)) * confidence
 
 def draw_joint_heatmap(arr, x, y, confidence, sigma):
+    """
+  Following the paper "PoseConv3D: A Pose-Based Convolutional Neural Network for 3D Action Recognition" 
+  it generates a heatmap for a joint by applying a Gaussian function to the array.
+  The Gaussian function is defined as:
+  f(x, y) = confidence * exp(-((x - x_0)^2 + (y - y_0)^2) / (2 * sigma^2))
+  where (x_0, y_0) is the center of the Gaussian function, sigma is the standard deviation, and confidence is the amplitude of the Gaussian function.
+  In order to improve performance we only apply it in a bounding box around the joint.
+  """
     h, w = arr.shape
     bbox_size = int(3 * sigma) # Adjust this multiplier as needed
 
@@ -36,7 +45,10 @@ def draw_joint_heatmap(arr, x, y, confidence, sigma):
 
 
 def joint_heatmap(w,h,joints, sigma):
-  """Generates a heatmap for given joints."""
+  """
+  Generates a heatmap for joints.
+  Takes as input a YOLO prediction array and generates a heatmap for each joint.
+  """
   heatmap = np.zeros((h, w, len(joints)))
 
   for k, joint in enumerate(joints):
@@ -130,7 +142,10 @@ def draw_limb_heatmap( arr, starts, ends,sigma):
         arr[min_y:max_y, min_x:max_x] = np.maximum(arr[min_y:max_y, min_x:max_x], patch)
 
 def limb_heatmap(w,h,joints, sigma):
-  """Generates a heatmap for given joints."""
+  """
+  Generates a heatmap for limbs.
+  Takes as input a YOLO prediction array and generates a heatmap for the limbs between joints.
+  """
   heatmap = np.zeros((h, w, len(joints)), dtype=np.float32)
   skeleton = [
           (0, 1), (0, 2), (1, 3),
@@ -147,7 +162,11 @@ def limb_heatmap(w,h,joints, sigma):
   return heatmap
 
 def aggregate_heatmap(heatmap):
-  """Aggregates the k layers of the heatmap into a single RGB image."""
+  """
+  Auxiliary function that merges all 17 joint heatmaps into one single 3D volume.
+  Used for testing to verify if the resulting heatmap is well-formatted and 
+  to verify if it can be used to train the model.
+  """
   # Sum across the k dimension
   aggregated_heatmap = np.sum(heatmap, axis=2)
 
@@ -160,6 +179,10 @@ def aggregate_heatmap(heatmap):
   return aggregated_heatmap
 
 def get_frame_features(frame, feature_extractor ):
+  """
+  Extracts the features from a single frame.
+  This is the function can be used to test and validate the heatmaps outputs and visualize them.
+  """
   results = modelYolo(frame)
   h, w, _ = frame.shape
   if(len(results[0])==0):
@@ -167,7 +190,7 @@ def get_frame_features(frame, feature_extractor ):
   processed_data = []
   for person in results[0].keypoints:
     joints = person.data.cpu().numpy()[0]
-    h, w, _ = frame_uint8.shape
+    h, w, _ = frame.shape
     sigma = 5
     heatmap = feature_extractor(w, h, joints,sigma)
     processed_data.append(heatmap)
@@ -177,12 +200,25 @@ def get_frame_features(frame, feature_extractor ):
 
 
 def get_features_conv3d_from_yolo_results(results, frame_shape, feature_extractor=joint_heatmap, output_size = (HEIGHT, WIDTH,CHANNELS)):
+  """
+  Extracts the features from a single frame.
+  This function takes as an input the results of YOLO detection, them return a single heatmap that can be used to train the model.
+  This is the function that is going to be used in the generator.
+  Many people can be detected in a frame, so we need to return a single heatmap that can be used to train the model. 
+  this is achieved by averaging the heatmaps of all detected people in a frame.
+  Args:
+    results: YOLO detection results.
+    frame_shape: Shape of the input frame.
+    feature_extractor: Function to extract features from the frame.
+    output_size: Size of the output heatmap.
+  Returns:
+    A single heatmap that can be used to train the model.
+  """
   if len(results[0])==0 :
     return np.zeros(output_size)
   processed_person = []
 
   for person in results[0].keypoints:
-    # print('Processing person')
     joints = person.data.cpu().numpy()[0]
     h, w, _ = frame_shape
     sigma = 5

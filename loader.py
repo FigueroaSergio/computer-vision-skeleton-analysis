@@ -3,6 +3,9 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 import tensorflow as tf
 
+# A centralized utility to manage the loader model from the las best model implementation 
+# trained . it builds the model base on the model_config.py 
+# file and loads the weights from the trained model.
 try:
     from STCGN.model import ST_GCN, create_skeleton_graph_spec_with_label
 

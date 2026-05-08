@@ -10,6 +10,14 @@ modelYolo = YOLO("yolo11n-pose.pt")
 N_POINTS= 1024
 
 class SPILGenerator:
+    """
+    Generator for SPIL training and inference.
+    
+    Since SPIL treats the skeleton as a point cloud, this generator handles the sampling 
+    of a fixed number of points. It takes the flattened point array from the feature 
+    extractor and selects points randomly to match the required `n_points` input size 
+    of the model.
+    """
     def __init__(self, pairs, training=False, n_frames=15, n_points=N_POINTS):
         self.pairs = pairs
         self.training = training

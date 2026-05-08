@@ -18,7 +18,7 @@ try:
     from PoseConv3D.model import Pose3D
     from PoseConv3D.generator import GeneratorPoseConv3D
     
-    from train import get_dataset  # Reusing data split logic
+    from dataset import get_dataset
     from loader import load_model
 
 except ImportError as e:
@@ -35,6 +35,18 @@ BATCH_SIZE = 1  # For benchmarking individual video processing time
 
 
 def get_test_generator(config, test_pairs):
+    """
+    This function allowe to retrive the  dataset generator for each model type.
+    The use of generator allow to reduce the memory usage and the processing time
+    because it only processes one video at a time.
+    
+    Args:
+        config: Configuration dictionary for the model.
+        test_pairs: List of (video_path, label) pairs for testing.
+        
+    Returns:
+        tf.data.Dataset: Dataset for testing the models.
+    """
     model_type = config["type"]
     n_frames = config.get("n_frames", 10)
     
@@ -72,6 +84,16 @@ def get_test_generator(config, test_pairs):
     return None
 
 def run_benchmark(config, test_set):
+    """
+    This function benchmark the models by processing a set of videos 
+    and measuring the time it takes for each model to process them.
+
+    Note: Since all the models use YOLOv11-pose for the initial feature extraction 
+    the benchmark does not take into account this time insted of it, 
+    the benchmark measures the total time in two stages: 
+    1. Data preparation time (from raw video to model input).
+    2. Inference time (from model input to final prediction).
+    """
     # Clear session to reset layer names and avoid "Layer expected 2 variables, received 0" errors
     tf.keras.backend.clear_session()
     

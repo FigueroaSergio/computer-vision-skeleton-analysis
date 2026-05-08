@@ -1,6 +1,19 @@
 import numpy as np
 
 def get_features_spil_from_yolo_results(results_list):
+    """
+    Transforms YOLOv11-pose detections into a 3D point cloud.
+    
+    The function flattens the predictions from multiple frames into a single list of points.
+    Each point is represented as a 4D vector: [x, y, frame_index, confidence].
+    This captures the spatial and temporal distribution of joints in a single point set.
+    
+    Args:
+        results_list: List of YOLO results for each frame.
+        
+    Returns:
+        A numpy array of shape (N, 4) containing all detected points.
+    """
     all_points = [] 
     for time_idx, results in enumerate(results_list):
         for result in results:

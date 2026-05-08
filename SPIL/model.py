@@ -10,16 +10,15 @@ modelYolo = YOLO("yolo11n-pose.pt")
 def get_neighbors(points, k=20):
     """
     Finds k-nearest neighbors for each point to form local regions.
-    [cite_start]Based on the paper's strategy to group local regional points[cite: 7].
+    Based on the paper's strategy to group local regional points.
     
     Args:
-        [cite_start]points: (batch_size, N, 3) - Coordinates (x, y, t) [cite: 82]
+        points: (batch_size, N, 3) - Coordinates (x, y, t)
     Returns:
         grouped_indices: (batch_size, N, k)
     """
     # Calculate pairwise distances
     # Using k-NN here as a standard proxy for the "local region" grouping described [cite: 108]
-    # [cite_start]In the paper, radius search is also mentioned[cite: 109].
     dist = tf.reduce_sum(points**2, axis=2, keepdims=True) - \
            2 * tf.matmul(points, points, transpose_b=True) + \
            tf.transpose(tf.reduce_sum(points**2, axis=2, keepdims=True), [0, 2, 1])
@@ -30,16 +29,9 @@ def get_neighbors(points, k=20):
 def index_points(points, idx):
     """
     Gathers points based on indices.
-    [cite_start]Used to retrieve neighbor coordinates and features[cite: 120].
+    Used to retrieve neighbor coordinates and features.
     """
-    # batch_size = tf.shape(points)[0]
-    # num_points = tf.shape(points)[1]
-    # data_dim = tf.shape(points)[2]
-    # k = tf.shape(idx)[2]
 
-    # batch_idx = tf.tile(tf.reshape(tf.range(batch_size), (-1, 1, 1)), (1, num_points, k))
-    # idx = tf.stack([batch_idx, tf.tile(tf.reshape(tf.range(num_points), (1, -1, 1)), (batch_size, 1, k)), idx], axis=-1)
-    
     return tf.gather(points, idx,batch_dims=1)
 
 class SPIL_Layer(layers.Layer):
@@ -217,7 +209,7 @@ class ViolenceRecognitionNet(Model):
     def __init__(self, num_classes=2):
         """
         Architecture Overview:
-        [cite_start]Input -> SPIL Module x3 -> MLP & Pooling -> Global Feature -> Classifier[cite: 95].
+        Input -> SPIL Module x3 -> MLP & Pooling -> Global Feature -> Classifier.
         """
         super(ViolenceRecognitionNet, self).__init__()
         
@@ -245,11 +237,11 @@ class ViolenceRecognitionNet(Model):
     def call(self, inputs):
         """
         Args:
-            [cite_start]inputs: (Batch, N, 3+C) - Matrix of N points with 3-dim coords and C-dim features [cite: 84]
+            inputs: (Batch, N, 3+C) - Matrix of N points with 3-dim coords and C-dim features
                     We assume the first 3 channels are (x, y, t) coordinates.
         """
         # Separate Coordinates and Features
-        # [cite_start]Input is N x (3+C) [cite: 84]
+        # Input is N x (3+C)
         xyz = inputs[:, :, :3] 
         features = inputs[:, :, :3] 
         

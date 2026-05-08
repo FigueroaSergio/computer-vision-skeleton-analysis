@@ -35,6 +35,28 @@ def joint_in_time(from_person,to_person):
     return joints
 
 def get_features_graph_from_yolo_results(results_list):
+    """
+    Generates a spatial-temporal graph from a sequence of YOLOv11-pose predictions.
+    
+    This function processes the keypoints detected in each frame and builds a graph where:
+    - Nodes represent individual joints (x, y coordinates and confidence).
+    - Spatial edges connect joints within the same person (skeleton).
+    - Temporal edges connect the same joint of the same person across consecutive frames.
+    
+    Tracking Logic:
+    To track people between frames, the function calculates the Euclidean distance between 
+    the set of joints of a person in the current frame and all persons in the previous frame. 
+    It uses a one-to-one measure (minimum distance) to uniquely link individuals across time, 
+    ensuring consistent temporal connections.
+    
+    Args:
+        results_list: List of YOLO results for each frame.
+        
+    Returns:
+        joints_all_frames: List of (x, y, confidence) for all detected joints.
+        limb_all_frames: List of (source, target) indices for spatial edges.
+        joints_in_time: List of (source, target) indices for temporal edges.
+    """
     frames_dict={} # frame_number: [person_id, person_id,...]
     person_dict={} # person_id: {'joints':..., 'confidence':...}
     joints_all_frames = []
@@ -94,6 +116,19 @@ def get_features(path_video,frame_count=10):
     return get_features_graph_from_yolo_results(results_list)
 
 def build_graph(joints_all_frames, limb_all_frames, joints_in_time, label):
+    """
+    Builds a graph from the iternal representation previusly build to track people across frames. 
+    and builds the graph for the model, based on the spec definition.
+    
+    Args:
+        joints_all_frames: List of (x, y, confidence) for all detected joints.
+        limb_all_frames: List of (source, target) indices for spatial edges.
+        joints_in_time: List of (source, target) indices for temporal edges.
+        label: List of labels for the graph.
+        
+    Returns:
+        graph: The graph tensor.
+    """
     # Ensure label is wrapped for rank 1 (assuming fix from previous steps)
     if not isinstance(label, (list, tuple)):
         label = [label] 
@@ -165,20 +200,3 @@ def graph_from_video(path_video,name,n_frames=10):
     graph = build_graph(joints_all_frames, limb_all_frames, joints_in_time,label)
   
     return graph
-
-
-    """
-    Extracts the 'label' from the graph context to be the Y value.
-    Returns: (features, label)
-    """
-    # X data is the GraphTensor itself
-    features = graph_tensor
-    
-    # Y data is the label from the context
-    label = graph_tensor.context['label']
-    
-    # If using BinaryCrossentropy, ensure label is float32 (optional, but good practice)
-    # label = tf.cast(label, tf.float32) 
-    label = tf.squeeze(graph_tensor.context['label'], axis=-1)
-    # Keras expects (features, target)
-    return features, label

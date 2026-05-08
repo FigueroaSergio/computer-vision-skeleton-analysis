@@ -132,10 +132,57 @@ Real Life Violence Dataset/
 
 ---
 
-## Experiment Tracking
+## Architecture & Scaffolding
 
-This project uses **Weights & Biases (WandB)** for experiment tracking. Make sure to log in before training:
+This project follows a structure where each action recognition architecture (STCGN, SPIL, PoseConv3D) is contained in its own directory with a consistent internal scaffolding:
 
-```bash
-wandb login
 ```
+[Module_Name]/
+├── generator.py          # Handles data iteration and batching
+├── feature_extractor.py  # Transforms YOLO keypoints to model input
+└── model.py              # The deep learning architecture (TF/Keras)
+```
+
+### Component Roles
+
+1.  **Generator**: Responsible for iterating through the dataset, managing batching, and providing samples to the training process. The scope to use data generators allow to reduce memory usage by mapping on the fly the data from the disk to the memory. In this way we can train models with a large number of frames without loading all the data into the memory.
+
+2.  **Feature Extractor**: Orchestrates the preprocessing of raw video frames. It uses YOLOv11-pose to detect human keypoints and transforms them into the specific format required by the model (graphs, point clouds, or heatmaps).
+
+3.  **Model**: The deep learning architecture that performs the action classification based on the extracted features.
+
+---
+
+### Implemented Models
+
+For detailed technical descriptions of each architecture, please refer to their respective documentation:
+
+- **[STCGN (Spatial-Temporal Graph Convolutional Network)](./STCGN/README.md)**: Processes skeleton data as a graph
+- **[SPIL (Skeleton-based Point-set Interaction Learning)](./SPIL/README.md)**: Treats skeletons as a 3D point cloud with dynamic interaction modeling.
+
+- **[PoseConv3D](./PoseConv3D/README.md)**: Represents skeleton data as 3D heatmaps for processing with 3D CNNs.
+
+---
+
+## Core Utilities
+
+### Benchmarking (`benchmark.py`)
+
+Provides a suite to evaluate model performance. It measures:
+
+- **Inference Time**: Time taken for the model to produce a prediction.
+- **Preprocessing Time**: Time taken to extract features from raw video.
+
+### Stream Processing (`stream_inference.py`)
+
+Handles real-time or file-based video processing. It orchestrates the entire pipeline: reading frames, extracting features via YOLO, transforming the keypoints to model inputs, running the classification model, and overlaying the results (e.g., "Violence" vs "Non-Violence" labels) on the output video the result is a new video with the annotations of the skeleton keypoints detected (yolo) and the prediction of the model.
+
+### Loader (`loader.py`)
+
+A centralized utility to manage the loader model from the las best model implementation trained . it builds the model base on the model_config.py file and loads the weights from the trained model.
+
+### Dataset (`dataset.py`)
+
+A centralized utility to manage the dataset . it builds the Train/Validation/Test split that are fit into the datagenerators, also use in the benchmarking process and the gradio app to allow select only test samples for evaluation.
+
+It save the splits into a json file to be reused and avoid shuffling the dataset every time also to warranty the same samples for training and validation for all the models.
