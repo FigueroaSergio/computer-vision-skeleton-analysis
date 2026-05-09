@@ -10,9 +10,11 @@ The feature extractor contains three different functions to generate heatmaps fr
 2. **Limb Heatmaps**: Generates heatmaps along the limbs (bones) between joints.
 3. **Joint and Limb Heatmaps**: A combined representation that merges both joint and limb information.
 
+![PoseConv3D architecture](../public/pose-conv3d-arch.png)
+
 ## Auxiliary Function
 
-Includes a utility function to merge all 17 individual joint heatmaps into a single 3D volume. This was primarily used for:
+Includes a utility **aggregate_heatmap** function to merge all 17 individual joint heatmaps into a single 3D volume. This was primarily used for:
 
 - **Testing**: Verifying that the resulting heatmaps are well-formatted.
 - **Validation**: Ensuring the input volume is suitable for training the 3D CNN model.
@@ -22,3 +24,7 @@ Includes a utility function to merge all 17 individual joint heatmaps into a sin
 1. **Generator**: Manages temporal sampling and batching of 3D heatmaps.
 2. **Feature Extractor**: Transforms YOLO keypoints into 3D volumes (heatmaps).
 3. **Model**: A 3D CNN architecture (e.g., based on [I3D](https://www.tensorflow.org/tutorials/video/video_classification) ) for processing the heatmap volumes.
+
+## Original paper
+
+[Link](https://arxiv.org/pdf/2104.13586)

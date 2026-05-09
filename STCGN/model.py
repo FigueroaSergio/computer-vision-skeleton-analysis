@@ -20,7 +20,7 @@ CHANNELS = 17
 FRAME_COUNT =10
 
 def create_skeleton_graph_spec_with_label():
-    """Define la estructura del Grafo Espacio-Temporal con label (para la entrada del modelo)."""
+    """Defines the structure of the Spatio-Temporal Graph with label (for model input)."""
     # Nota: El modelo solo necesita la estructura de entrada, no la etiqueta en el Contexto.
     # Pero aquí definimos la estructura completa por conveniencia.
     return tfgnn.GraphTensorSpec.from_piece_specs(
@@ -59,31 +59,32 @@ def dense(units, activation="relu"):
 
 def ST_GCN(graph_spec, gnn_units=64, num_gcn_layers=2):
     """
+    Creates a ST-GCN model for skeleton-based action recognition.
     Crea y compila un modelo GNN basado en GCN para la clasificación de grafos.
 
     Args:
-        graph_spec (tfgnn.GraphTensorSpec): La especificación de la entrada del grafo.
-        gnn_units (int): La dimensión de la incrustación oculta para los nodos.
-        num_gcn_layers (int): Número de capas GCN a aplicar.
+        graph_spec (tfgnn.GraphTensorSpec): The specification of the input graph.
+        gnn_units (int): The dimension of the hidden embedding for the nodes.
+        num_gcn_layers (int): Number of GCN layers to apply.
         
     Returns:
-        tf.keras.Model: El modelo Keras compilado.
+        tf.keras.Model: The compiled Keras model.
     """
-    # 1. ENTRADA
+    # 1. INPUT
     graph_input = keras.Input(type_spec=graph_spec)
     graph = graph_input.merge_batch_to_components()
     message_dim = 16
     next_state_dim=32
 
 
-    # 2. PROCESAMIENTO INICIAL (Si se desea un embedding inicial)
-    # No es necesario aquí, ya que las features [x, y, conf] ya son útiles.
+    # 2. INITIAL PROCESSING (If an initial embedding is desired)
+    # Not necessary here, since the [x, y, conf] features are already useful.
     
-    # 3. CAPAS GNN (Propagación de Mensajes Espacio-Temporal)
-    # Aplicar la GCN a través de los diferentes tipos de bordes
+    # 3. GNN LAYERS (Spatio-Temporal Message Propagation)
+    # Apply the GCN across the different types of edges
     for i in range(num_gcn_layers):
         
-        # Propagación de mensajes *Espaciales* ('limbs')
+        # Spatial message passing ('limbs')
         graph = tfgnn.keras.layers.GraphUpdate(
             node_sets={
                 "joints": tfgnn.keras.layers.NodeSetUpdate({
@@ -97,7 +98,7 @@ def ST_GCN(graph_spec, gnn_units=64, num_gcn_layers=2):
                 tfgnn.keras.layers.NextStateFromConcat(dense(next_state_dim))),
             })(graph)
         
-        # Propagación de mensajes *Temporales* ('temporal_connections')
+        # Temporal message passing ('temporal_connections')
         graph = tfgnn.keras.layers.GraphUpdate(
             node_sets={
                 "joints": tfgnn.keras.layers.NodeSetUpdate({
@@ -112,26 +113,26 @@ def ST_GCN(graph_spec, gnn_units=64, num_gcn_layers=2):
             })(graph)
     
     
-    # 4. AGREGACIÓN GLOBAL (De Nodos a Grafo)
-    # Combinar todas las features de los nodos 'joints' para obtener una feature única para el grafo.
+    # 4. GLOBAL AGGREGATION (From Nodes to Graph)
+    # Combine all node features to obtain a unique feature for the graph.
     graph_features = tfgnn.keras.layers.Pool(
         tfgnn.CONTEXT, "mean", node_set_name="joints"
     )(graph)
     
     
-    # 5. CLASIFICACIÓN (MLP para el Contexto)
+    # 5. CLASSIFICATION (MLP for the Context)
     
-    # Capa Densa (Regularización)
+    # Dense Layer (Regularization)
     classification_output = keras.layers.Dense(32, activation='relu')(graph_features)
     classification_output = keras.layers.Dropout(0.1)(classification_output)
     
-    # Capa de Salida (1 unidad para clasificación binaria)
+    # Output Layer (1 unit for binary classification)
     output = keras.layers.Dense(2,  activation='softmax')(classification_output)
     
-    # Definición del modelo
+    # Model definition
     model = keras.Model(inputs=graph_input, outputs=output)
     
-    # Compilación del modelo
+    # Compile model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(),
