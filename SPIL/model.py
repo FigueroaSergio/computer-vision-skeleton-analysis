@@ -75,18 +75,13 @@ class SPIL_Layer(layers.Layer):
             neighbor_features: (B, N, K, C) - Neighbor features
         """
         
-        # Multi-head Mechanism Loop [cite: 187] ---
-        # Note: In efficient TF, we process heads in parallel via reshaping, 
-        # but for clarity regarding the paper's math, we treat the dimensions explicitly.
+        # Multi-head Mechanism Loop ---
         
         # 1. Feature Term R^F
         # Project features
         feat_i = self.phi(center_features)  # (B, N, head_dim)
         feat_j = self.theta(neighbor_features) # (B, N, K, head_dim)
-        # print(f"center_xyz shape: {center_xyz.shape}")
-        # print(f"center_features shape: {feat_i.shape}")
-        # print(f"neighbor_xyz shape: {feat_j.shape}")
-        # print(f"neighbor_features shape: {feat_j.shape}")
+
         
         # Expand feat_i for broadcasting: (B, N, 1, head_dim)
         feat_i_exp = tf.expand_dims(feat_i, axis=2)
@@ -112,24 +107,7 @@ class SPIL_Layer(layers.Layer):
         # Condition: if (l_i^z == l_j^z) and distance > d
         
         t_i = tf.expand_dims(center_xyz[..., 2], axis=2) # (B, N, 1)
-        # [..., 2] is exactly the same as writing center_xyz[:, :, 2]
-        # just go to the very last dimension and grab the value at index 2
-        # tf.expand_dims is used to add a dimension of size 1 to a tensor at a specific location.
-        # center_xyz shape: (2, 2, 3)
-        # [
-        #   Batch 0: [ [x0, y0, z0], [x1, y1, z1] ],
-        #   Batch 1: [ [x2, y2, z2], [x3, y3, z3] ]
-        # ]
-        # Result of slicing: [...,2] (2,2)
-        # [
-        #   Batch 0: [z0, z1],
-        #   Batch 1: [z2, z3]
-        # ]
-        # t_i shape: (2, 2, 1) = expand_dims (2, 2, 1)
-        # [
-        #   Batch 0: [ [z0], [z1] ],
-        #   Batch 1: [ [z2], [z3] ]
-        # ]
+
 
 
 
