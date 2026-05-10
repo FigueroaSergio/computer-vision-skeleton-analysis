@@ -8,7 +8,7 @@ import imageio
 from pathlib import Path
 
 # Import from stream_inference
-from stream_inference import process_video
+from stream_inference import process_video, StreamInference
 from train import get_dataset
 from model_config import MODELS_CONFIG
 
@@ -43,6 +43,11 @@ def resolve_uploaded_video_path(uploaded_video):
     return getattr(uploaded_video, "name", None)
 
 
+def stream_inference_handler(frame, model_name, state):
+    if state is None:
+        state = StreamInference()
+    processed_frame = state.process_frame(frame, model_name)
+    return processed_frame, state
 def process_and_display(model_name, video_choice, uploaded_video=None):
     """Process video with selected model or uploaded file and return output"""
     if not model_name:
@@ -151,7 +156,36 @@ def create_gradio_interface():
                 interactive=False,
                 autoplay=True
             )
+
+        
+        ### TODO: change to https://www.gradio.app/guides/object-detection-from-webcam-with-webrtc
+
+        # https://www.gradio.app/guides/streaming-inputs
+        # Simple approach without requiring additional libraries
+        with gr.Row():
+            with gr.Column():
+                options = gr.WebcamOptions(
+                    mirror=True, 
+                    constraints={
+                        "width": {"ideal": 128, "max":240},
+                        "height": {"ideal": 128,"max":240},
+                        "frameRate": {"ideal": 15, "max":15}
+                    }
+                )
+                input_img = gr.Image(label="Input", sources="webcam", type="numpy", webcam_options=options)
+            with gr.Column():
+                output_img = gr.Image(label="Output")
+
         # Connect the button click to the processing function
+        stream_state = gr.State(None)
+        input_img.stream(
+            fn=stream_inference_handler,
+            inputs=[input_img, model_dropdown, stream_state],
+            outputs=[output_img, stream_state],
+            time_limit=30,
+            stream_every=0.5,
+            concurrency_limit=2
+        )
         process_btn.click(
             fn=process_and_display,
             inputs=[model_dropdown, video_dropdown, uploaded_video],
@@ -166,4 +200,4 @@ if __name__ == "__main__":
     print(f"Available videos: {len(get_video_options())}")
     
     demo = create_gradio_interface()
-    demo.launch(share=True, server_name="0.0.0.0", server_port=7860)
+    demo.launch( server_name="0.0.0.0", server_port=7860)

@@ -35,6 +35,105 @@ def pad_or_sample_points(points, n_points):
     
     return np.array(points)[indices].astype(np.float32)
 
+class StreamInference:
+    def __init__(self):
+        self.yolo_model = YOLO("yolo11n-pose.pt")
+        self.current_model_name = None
+        self.model = None
+        self.config = None
+        self.yolo_buffer = deque()
+        self.shape_buffer = deque()
+        self.buffer_size = 0
+        self.current_label = "Buffering..."
+        self.current_color = (0, 255, 255) # Yellow in BGR
+
+    def update_model(self, model_name):
+        if self.current_model_name == model_name:
+            return
+        
+        self.config = next((m for m in MODELS_CONFIG if m["name"] == model_name), None)
+        if not self.config:
+            return
+
+        print(f"Loading {model_name} for streaming...")
+        model_data = load_model(self.config)
+        if model_data:
+            self.model, _ = model_data
+            self.current_model_name = model_name
+            n_frames = self.config.get("n_frames", 10)
+            self.buffer_size = n_frames 
+            self.yolo_buffer = deque(maxlen=self.buffer_size)
+            self.shape_buffer = deque(maxlen=self.buffer_size)
+            self.current_label = "Buffering..."
+            self.current_color = (0, 255, 255) # Yellow in BGR
+
+    def process_frame(self, frame, model_name):
+        if frame is None:
+            return None
+            
+        self.update_model(model_name)
+        if not self.model:
+            return frame
+
+        # 1. Feature Extraction with YOLO
+        # Convert RGB (Gradio) to BGR (OpenCV/YOLO)
+        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        results = self.yolo_model(frame_bgr, verbose=False)
+        self.yolo_buffer.append(results)
+        self.shape_buffer.append(frame_bgr.shape)
+
+        # 2. Run Inference when total frames are collected
+        if len(self.yolo_buffer) == self.buffer_size:
+            sampled_results = list(self.yolo_buffer)[::STEP]
+            sampled_shapes = list(self.shape_buffer)[::STEP]
+            
+            preds = None
+            model_type = self.config["type"]
+            n_frames = self.config.get("n_frames", 10)
+            n_points = self.config.get("n_points", 1024)
+
+            if "SPIL" in model_type:
+                points = get_features_spil_from_yolo_results(sampled_results)
+                sampled_points = pad_or_sample_points(points, n_points)
+                input_data = np.expand_dims(sampled_points, axis=0)
+                preds = self.model.predict(input_data, verbose=0)[0] 
+                
+            elif "ST_GCN" in model_type:
+                joints_all, limbs_all, joints_time = get_features_graph_from_yolo_results(sampled_results)
+                graph = build_graph(joints_all, limbs_all, joints_time, [0]) 
+                ds = tf.data.Dataset.from_tensors(graph).batch(1)
+                ds = ds.map(separate_features_and_label)
+                for features, _ in ds:
+                    preds = self.model.predict(features, verbose=0)[0]
+                    break
+                    
+            elif "PoseConv3D" in model_type:
+                formatted_frames = []
+                for i in range(n_frames):
+                    feats = get_features_conv3d_from_yolo_results(sampled_results[i], sampled_shapes[i], limb_heatmap, (HEIGHT, WIDTH, CHANNELS))
+                    formatted_frame = format_frames(feats, (HEIGHT, WIDTH))
+                    formatted_frames.append(formatted_frame)
+                input_data = np.expand_dims(np.array(formatted_frames), axis=0)
+                preds = self.model.predict(input_data, verbose=0)[0]
+            
+            if preds is not None:
+                pred_class = np.argmax(preds)
+                prob = preds[pred_class]
+                if pred_class == 0:
+                    self.current_label = f"Violence: {prob:.2f}"
+                    self.current_color = (0, 0, 255) # Red in BGR
+                else:
+                    self.current_label = f"Non-Violence: {prob:.2f}"
+                    self.current_color = (0, 255, 0) # Green in BGR
+
+        # 3. Draw Annotations
+        annotated_frame = results[0].plot() 
+        (text_width, text_height), baseline = cv2.getTextSize(self.current_label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+        cv2.rectangle(annotated_frame, (10, 10), (20 + text_width, 40 + text_height), (0, 0, 0), -1)
+        cv2.putText(annotated_frame, self.current_label, (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.current_color, 2, cv2.LINE_AA)
+        
+        # Convert back to RGB for Gradio
+        return cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
 
 def process_video(input_path, output_path, config):
     model_type = config["type"]
